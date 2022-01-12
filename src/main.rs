@@ -73,7 +73,7 @@ fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(
         }
 
         if found_in_progress {
-            println!("{}{}{}{}", cursor::Hide, cursor::Goto(1, 1), screen, clear::UntilNewline);
+            println!("{}{}{}\r", cursor::Goto(1, 1), screen, clear::UntilNewline);
         }
         else {
             println!("No ongoing operations found for ascan {}.", id);
