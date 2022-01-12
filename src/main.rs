@@ -130,7 +130,7 @@ fn show_state(host: &str, port: u16, id: u32, zap_key: String) -> Result<(), i32
 
 fn main() -> Result<(), i32> {
     let matches = App::new("ZAP Ascan Monitor")
-        .version("0.1")
+        .version("1.0.0")
         .author("Sin Kettu <avangard.jazz@gmail.com>")
         .arg(Arg::with_name("address")
             .short("a")
