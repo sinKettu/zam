@@ -29,7 +29,8 @@ fn get_state(host: &str, port: u16, id: u32, zap_key: &str) -> serde_json::Value
 }
 
 fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(), i32> {
-    print!("{}", clear::All);
+    // print!("{}", clear::All);
+    let mut need_to_clear_screen = true;
     loop {
         let progress_regex = Regex::new(r"^\d{1,3}%$").unwrap();
         let state = get_state(host, port, id, zap_key.as_str());
@@ -37,6 +38,11 @@ fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(
         if state.get("code").is_some() {
             eprintln!("{}: Unable to retrieve state: {}", "Error".red(), state);
             return Err(3);
+        }
+
+        if need_to_clear_screen {
+            println!("{}", clear::All);
+            need_to_clear_screen = false;
         }
 
         let tests = &state["scanProgress"];
