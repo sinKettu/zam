@@ -42,6 +42,7 @@ fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(
         let tests = &state["scanProgress"];
         let mut screen = String::new();
         let mut current_host = String::new();
+        let mut found_in_progress = false;
         for i in 0..tests.as_array().unwrap().len() {
             if i % 2 == 0 {
                 current_host = tests[i].to_string();
@@ -58,6 +59,7 @@ fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(
                 let duration = (duration.parse::<f64>().unwrap() / 1000.0).to_string();
 
                 if progress_regex.is_match(progress) {
+                    found_in_progress = true;
                     let progress_bar = progress[0..progress.len() - 1].parse::<usize>().unwrap() / 5;
                     screen += format!("{}{}", current_host, clear::UntilNewline).as_str();
                     screen += format!("\n\t{} -- ", name.yellow()).as_str();
@@ -70,8 +72,17 @@ fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(
             screen += "\n"
         }
 
-        print!("{}{}{}{}", cursor::Hide, cursor::Goto(1, 1), screen, clear::UntilNewline);
+        if found_in_progress {
+            println!("{}{}{}{}", cursor::Hide, cursor::Goto(1, 1), screen, clear::UntilNewline);
+        }
+        else {
+            println!("No ongoing operations found for ascan {}.", id);
+            println!("You can see summary running {} without flag {}", "zam".bold(), "-m".bold());
+            break;
+        }
     }
+
+    Ok(())
 }
 
 fn show_state(host: &str, port: u16, id: u32, zap_key: String) -> Result<(), i32> {
@@ -168,7 +179,7 @@ fn main() -> Result<(), i32> {
     // Convert passed address to more convenient shape
     let split_address = address.split(":").collect::<Vec<&str>>();
     if split_address.len() != 2 {
-        eprintln!("Given address is not valid and must be in the following format: IP:PORT. Current: {}", address);
+        eprintln!("Given address is not valid and must be in the following format: IP:PORT. Current: {}", address.bold());
         return Err(2);
     }
 
