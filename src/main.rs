@@ -28,6 +28,106 @@ fn get_state(host: &str, port: u16, id: u32, zap_key: &str) -> serde_json::Value
         .json::<serde_json::Value>().unwrap()
 }
 
+fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(), i32> {
+    print!("{}", clear::All);
+    loop {
+        let progress_regex = Regex::new(r"^\d{1,3}%$").unwrap();
+        let state = get_state(host, port, id, zap_key.as_str());
+
+        if state.get("code").is_some() {
+            eprintln!("{}: Unable to retrieve state: {}", "Error".red(), state);
+            return Err(3);
+        }
+
+        let tests = &state["scanProgress"];
+        let mut screen = String::new();
+        let mut current_host = String::new();
+        for i in 0..tests.as_array().unwrap().len() {
+            if i % 2 == 0 {
+                current_host = tests[i].to_string();
+                continue
+            }
+
+            let plugins = &tests[i]["HostProcess"];
+            let plugins_num = plugins.as_array().unwrap().len();
+            for j in 0..plugins_num {
+                let name = plugins[j]["Plugin"][0].as_str().unwrap();
+                let progress = plugins[j]["Plugin"][3].as_str().unwrap();
+
+                let duration = plugins[j]["Plugin"][4].as_str().unwrap();
+                let duration = (duration.parse::<f64>().unwrap() / 1000.0).to_string();
+
+                if progress_regex.is_match(progress) {
+                    let progress_bar = progress[0..progress.len() - 1].parse::<usize>().unwrap() / 5;
+                    screen += format!("{}{}", current_host, clear::UntilNewline).as_str();
+                    screen += format!("\n\t{} -- ", name.yellow()).as_str();
+                    screen += format!("{} ", progress).as_str();
+                    screen += format!("[{:■<1$}", "", progress_bar).as_str();
+                    screen += format!("{:.<1$}] ", "", 20usize - progress_bar).as_str();
+                    screen += format! {"{}s{}\n", duration.as_str().bold(), clear::UntilNewline}.as_str();
+                }
+            }
+            screen += "\n"
+        }
+
+        print!("{}{}{}{}", cursor::Hide, cursor::Goto(1, 1), screen, clear::UntilNewline);
+    }
+}
+
+fn show_state(host: &str, port: u16, id: u32, zap_key: String) -> Result<(), i32> {
+    let progress_regex = Regex::new(r"^\d{1,3}%$").unwrap();
+    let state = get_state(host, port, id, zap_key.as_str());
+
+    if state.get("code").is_some() {
+        eprintln!("{}: Unable to retrieve state: {}", "Error".red(), state);
+        return Err(3);
+    }
+
+    let tests = &state["scanProgress"];
+    let mut screen = String::new();
+    for i in 0..tests.as_array().unwrap().len() {
+        if i % 2 == 0 {
+            screen += format!("{}\n", tests[i].as_str().unwrap()).as_str();
+            continue
+        }
+
+        let plugins = &tests[i]["HostProcess"];
+        let plugins_num = plugins.as_array().unwrap().len();
+        for j in 0..plugins_num {
+            let name = &plugins[j]["Plugin"][0];
+            let progress = plugins[j]["Plugin"][3].as_str().unwrap();
+            let mut progress_bar = 0;
+            let mut color = Color::White;
+
+            let duration = plugins[j]["Plugin"][4].as_str().unwrap();
+            let duration = (duration.parse::<f64>().unwrap() / 1000.0).to_string();
+
+            if progress_regex.is_match(progress) {
+                progress_bar = progress[0..progress.len() - 1].parse::<usize>().unwrap() / 10;
+                color = Color::Yellow;
+            }
+            else if progress == "Complete" {
+                progress_bar = 10;
+                color = Color::Green;
+            }
+            else if progress.starts_with("Skipped") {
+                color = Color::Red;
+            }
+            else if progress == "Pending" {
+                color = Color::Blue;
+            }
+
+            screen += format!("\t[{:■<1$}", "", progress_bar).as_str();
+            screen += format!("{:.<1$}] ", "", 10usize - progress_bar).as_str();
+            screen += format!("{}\t({}s)\t{}\n", progress.color(color), duration.bold(), name).as_str();
+        }
+        screen += "\n"
+    }
+
+    print!("{}{}", screen, clear::AfterCursor);
+    Ok(())
+}
+
 fn main() -> Result<(), i32> {
     let matches = App::new("ZAP Ascan Monitor")
         .version("0.1")
@@ -46,10 +146,17 @@ fn main() -> Result<(), i32> {
             .takes_value(true)
             .required(true)
             .help("IF of active scanner to monitor"))
+        .arg(Arg::with_name("monitor")
+            .short("m")
+            .long("monitor")
+            .takes_value(false)
+            .help("Monitor mode, zam will show ongoing processes"))
         .get_matches();
 
+    // Retrieving zam parameters
     let address = matches.value_of("address").unwrap();
     let id = matches.value_of("scan_id").unwrap().parse::<u32>().unwrap();
+    let monitor = matches.is_present("monitor");
     let zap_key = match get_env("ZAP_KEY") {
         Ok(val) => val.to_string(),
         Err(err) => {
@@ -81,54 +188,10 @@ fn main() -> Result<(), i32> {
         }
     }
 
-    let progress_regex = Regex::new(r"^\d{1,3}%$").unwrap();
-    let state = get_state(host, port, id, zap_key.as_str());
-
-    if state.get("code").is_some() {
-        eprintln!("{}: Error while requesting state: {}", "Error".red(), state);
-        return Err(3);
+    if monitor {
+        run_monitor_mode(host, port, id, zap_key)
     }
-
-    let tests = &state["scanProgress"];
-    let mut screen = String::new();
-    for i in 0..tests.as_array().unwrap().len() {
-        if i % 2 == 1 {
-            let plugins = &tests[i]["HostProcess"];
-            let plugins_num = plugins.as_array().unwrap().len();
-            for j in 0..plugins_num {
-                let name = &plugins[j]["Plugin"][0];
-                let progress = plugins[j]["Plugin"][3].as_str().unwrap();
-                let mut progress_bar = 0;
-                let mut color = Color::White;
-
-                let duration = plugins[j]["Plugin"][4].as_str().unwrap();
-                let duration = (duration.parse::<f64>().unwrap() / 1000.0).to_string();
-
-                if progress_regex.is_match(progress) {
-                    progress_bar = progress[0..progress.len() - 1].parse::<usize>().unwrap() / 10;
-                    color = Color::Yellow;
-                }
-                else if progress == "Complete" {
-                    progress_bar = 10;
-                    color = Color::Green;
-                }
-                else if progress.starts_with("Skipped") {
-                    color = Color::Red;
-                }
-                else if progress == "Pending" {
-                    color = Color::Blue;
-                }
-
-                screen += format!("\t[{:■<1$}", "", progress_bar).as_str();
-                screen += format!("{:.<1$}] ", "", 10usize - progress_bar).as_str();
-                screen += format!("{}\t({}s)\t{}\n", progress.color(color), duration.bold(), name).as_str();
-            }
-            screen += "\n";
-        } else {
-            screen += format!("{}\n", tests[i].as_str().unwrap()).as_str();
-        }
+    else {
+        show_state(host, port, id, zap_key)
     }
-
-    print!("{}{}{}{}{}", clear::All, cursor::Hide, cursor::Goto(1, 1), screen, clear::AfterCursor);
-    Ok(())
 }
