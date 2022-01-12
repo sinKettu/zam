@@ -165,28 +165,15 @@ fn main() -> Result<(), i32> {
         }
     };
 
-    let host_regex = Regex::new(
-        r"^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})$"
-    ).unwrap();
-
-    let groups = host_regex.captures(address);
-    let host;
-    let port;
-    match groups {
-        Some(val) => {
-            host = val.get(1)
-                .expect("Cannot get host (address) from hostname")
-                .as_str();
-            port = val.get(2)
-                .expect("Cannot get port from hostname")
-                .as_str()
-                .parse::<u16>().unwrap();
-        },
-        None => {
-            eprintln!("{}: Cannot parse passed address", "Error".red());
-            return Err(2);
-        }
+    // Convert passed address to more convenient shape
+    let split_address = address.split(":").collect::<Vec<&str>>();
+    if split_address.len() != 2 {
+        eprintln!("Given address is not valid and must be in the following format: IP:PORT. Current: {}", address);
+        return Err(2);
     }
+
+    let host = split_address[0];
+    let port = split_address[1].parse::<u16>().unwrap();
 
     if monitor {
         run_monitor_mode(host, port, id, zap_key)
