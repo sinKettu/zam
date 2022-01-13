@@ -10,7 +10,7 @@ use termion::{cursor, clear};
 
 fn get_state(host: &str, port: u16, id: u32, zap_key: &str) -> serde_json::Value {
     let client = reqwest::blocking::Client::builder().build().unwrap();
-    client
+    let response = client
         .get(
             format!(
                 "http://{}:{}/JSON/ascan/view/scanProgress/?apikey={}&scanId={}",
@@ -24,8 +24,15 @@ fn get_state(host: &str, port: u16, id: u32, zap_key: &str) -> serde_json::Value
             "Accept",
             "application/json"
         )
-        .send().unwrap()
-        .json::<serde_json::Value>().unwrap()
+        .send();
+
+    match response {
+        Ok(rsp) => rsp.json::<serde_json::Value>().unwrap(),
+        Err(err) => {
+            eprintln!("{}: Cannot connect to host: {}", "Error".red(), err);
+            serde_json::Value::Null
+        }
+    }
 }
 
 fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(), i32> {
@@ -34,6 +41,10 @@ fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(
     loop {
         let progress_regex = Regex::new(r"^\d{1,3}%$").unwrap();
         let state = get_state(host, port, id, zap_key.as_str());
+
+        if state.is_null() {
+            return Err(61);
+        }
 
         if state.get("code").is_some() {
             eprintln!("{}: Unable to retrieve state: {}", "Error".red(), state);
@@ -94,6 +105,10 @@ fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(
 fn show_state(host: &str, port: u16, id: u32, zap_key: String) -> Result<(), i32> {
     let progress_regex = Regex::new(r"^\d{1,3}%$").unwrap();
     let state = get_state(host, port, id, zap_key.as_str());
+
+    if state.is_null() {
+        return Err(61);
+    }
 
     if state.get("code").is_some() {
         eprintln!("{}: Unable to retrieve state: {}", "Error".red(), state);
