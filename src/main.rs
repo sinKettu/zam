@@ -37,7 +37,7 @@ fn get_state(host: &str, port: u16, id: u32, zap_key: &str) -> serde_json::Value
 
 fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(), i32> {
     // print!("{}", clear::All);
-    let mut need_to_clear_screen = true;
+    // let mut need_to_clear_screen = true;
     loop {
         let progress_regex = Regex::new(r"^\d{1,3}%$").unwrap();
         let state = get_state(host, port, id, zap_key.as_str());
@@ -51,10 +51,10 @@ fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(
             return Err(3);
         }
 
-        if need_to_clear_screen {
-            println!("{}", clear::All);
-            need_to_clear_screen = false;
-        }
+        // if need_to_clear_screen {
+        //     println!("{}", clear::All);
+        //     need_to_clear_screen = false;
+        // }
 
         let tests = &state["scanProgress"];
         let mut screen = String::new();
@@ -90,7 +90,7 @@ fn run_monitor_mode(host: &str, port: u16, id: u32, zap_key: String) -> Result<(
         }
 
         if found_in_progress {
-            println!("{}{}{}\r", cursor::Goto(1, 1), screen, clear::UntilNewline);
+            println!("{}{}{}{}\r", clear::All, cursor::Goto(1, 1), screen, clear::UntilNewline);
         }
         else {
             println!("No ongoing operations found for ascan {}.", id);
