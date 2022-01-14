@@ -26,10 +26,15 @@ fn get_state(host: &str, port: u16, id: u32, zap_key: &str) -> serde_json::Value
         )
         .send();
 
-    match response {
-        Ok(rsp) => rsp.json::<serde_json::Value>().unwrap(),
+    if let Err(err) = response {
+        eprintln!("{}: Cannot connect to host: {}", "Error".red(), err);
+        return serde_json::Value::Null;
+    }
+
+    match response.unwrap().json::<serde_json::Value>() {
+        Ok(rsp) => rsp,
         Err(err) => {
-            eprintln!("{}: Cannot connect to host: {}", "Error".red(), err);
+            eprintln!("{}: cannot parse response body: {}", "Error".red(), err);
             serde_json::Value::Null
         }
     }
@@ -162,7 +167,7 @@ fn show_state(host: &str, port: u16, id: u32, zap_key: String) -> Result<(), i32
 
 fn main() -> Result<(), i32> {
     let matches = App::new("ZAP Ascan Monitor")
-        .version("1.0.0")
+        .version("1.0.6")
         .author("Sin Kettu <avangard.jazz@gmail.com>")
         .arg(Arg::with_name("address")
             .short("a")
